@@ -171,6 +171,69 @@ graph TB
 
 ## Arsitektur Masa Depan
 
+Setelah migrasi, BidMart bertransisi ke arsitektur microservices berbasis
+Event-Driven Architecture (EDA). Setiap modul menjadi service independen
+dengan database-nya sendiri. Komunikasi antar service dilakukan secara
+asinkronus melalui message broker (RabbitMQ/Kafka). API Gateway menangani
+routing, autentikasi, dan rate limiting di lapisan terdepan.
+
+```mermaid
+graph TB
+    User["👤 Buyer / Seller"]
+    FE["🌐 Next.js Frontend"]
+    APIGW["🚪 API Gateway<br/><i>Rate limiting, Auth routing</i>"]
+
+    subgraph broker ["Message Broker (RabbitMQ / Kafka)"]
+        direction LR
+        E1["📨 bid.placed"]
+        E2["📨 auction.winner_determined"]
+        E3["📨 user.banned"]
+        E4["📨 catalog.price_updated"]
+    end
+
+    subgraph services ["Microservices"]
+        direction TB
+        AUTH_SVC["🔐 Auth Service<br/><i>Own DB</i>"]
+        CATALOG_SVC["📦 Catalog Service<br/><i>Own DB</i>"]
+        AUCTION_SVC["🔨 Auction Service<br/><i>Own DB (Redis for fast bids)</i>"]
+        WALLET_SVC["💰 Wallet Service<br/><i>Own DB</i>"]
+        ORDER_SVC["🚚 Order & Notif Service<br/><i>Own DB</i>"]
+    end
+
+    User --> FE
+    FE -->|HTTPS / WS| APIGW
+    APIGW --> AUTH_SVC
+    APIGW --> CATALOG_SVC
+    APIGW --> AUCTION_SVC
+    APIGW --> WALLET_SVC
+    APIGW --> ORDER_SVC
+
+    AUCTION_SVC <-->|"Sync gRPC/REST<br/>(Fast Fund Check)"| WALLET_SVC
+
+    AUCTION_SVC -->|"publish"| E1
+    AUCTION_SVC -->|"publish"| E2
+    AUTH_SVC -->|"publish"| E3
+    
+    E1 -->|"subscribe"| CATALOG_SVC
+    E1 -->|"subscribe"| ORDER_SVC
+    E2 -->|"subscribe"| WALLET_SVC
+    E2 -->|"subscribe"| ORDER_SVC
+    E3 -->|"subscribe"| AUCTION_SVC
+
+    style broker fill:#7C3AED,color:#fff,stroke:#6D28D9
+    style services fill:#1E293B,color:#E2E8F0,stroke:#475569
+    style APIGW fill:#F97316,color:#fff,stroke:#EA580C
+
+```
+
+### Key Events
+
+| Event | Publisher | Subscribers | Tujuan |
+| --- | --- | --- | --- |
+| `bid.placed` | Auction Service | Catalog, Order/Notif | Update harga katalog async & notif outbid |
+| `auction.winner_determined` | Auction Service | Wallet, Order/Notif | Konversi hold dana jadi payment, buat order |
+| `user.banned` | Auth Service | Auction | Gugurkan bid aktif & lepas dana tertahan |
+
 
 
 ---
