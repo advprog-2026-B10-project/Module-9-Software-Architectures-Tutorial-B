@@ -5,6 +5,16 @@
 
 ---
 
+## Individual Work
+
+- [Ahmad Wasis Shofiyulloh - Auth Module](Auth.md)
+- [Fidel Akilah](#)
+- [Josiah Naphta Simorangkir](#)
+- [Petrus Wermasaubun](#)
+- [Tsaniya Fini Ardiyanti - Bidding Module](Bidding.md)
+
+---
+
 ## Arsitektur Saat Ini
 
 ### System Context (C4 Level 1)
@@ -12,7 +22,7 @@
 BidMart melayani tiga jenis pengguna: Buyer yang aktif mencari barang dan
 memasang bid, Seller yang membuka sesi lelang, dan Admin yang menjaga kesehatan
 platform. Untuk memproses transaksi keuangan dan pengiriman notifikasi, BidMart
-bergantung pada dua sistem eksternal — Payment Gateway dan Email/Push Provider.
+bergantung pada dua sistem eksternal, Payment Gateway dan Email/Push Provider.
 
 ```mermaid
 flowchart TD
@@ -101,7 +111,7 @@ graph TB
 ```
 
 Ketergantungan sinkronus antar modul menjadi perhatian utama. Auction Module
-harus menunggu respons dari Wallet Module sebelum bid dapat dikonfirmasi —
+harus menunggu respons dari Wallet Module sebelum bid dapat dikonfirmasi,
 artinya kelambatan di Wallet langsung berdampak pada pengalaman bidding.
 
 | From | To | Jenis Coupling | Alasan |
@@ -117,7 +127,7 @@ artinya kelambatan di Wallet langsung berdampak pada pengalaman bidding.
 
 Backend di-deploy sebagai Docker container di EC2, terhubung ke PostgreSQL
 terkelola. Frontend Next.js di-deploy secara independen. GitHub Actions
-menangani CI/CD — setiap push ke main branch memicu testing otomatis
+menangani CI/CD, setiap push ke main branch memicu testing otomatis
 sebelum deployment.
 
 ```mermaid
@@ -247,14 +257,14 @@ lelang barang populer yang diikuti ribuan user secara bersamaan.
 | --- | --- | --- | --- | --- | --- |
 | R1 | Database locking saat bidding war | High (3) | High (3) | 🔴 9 | Performance |
 | R2 | Wallet sync bottleneck memblokir bid | High (3) | High (3) | 🔴 9 | Availability |
-| R3 | Single point of failure — monolith crash | High (3) | Medium (2) | 🔴 6 | Availability |
+| R3 | Single point of failure (monolith crash) | High (3) | Medium (2) | 🔴 6 | Availability |
 | R4 | Anti-sniping thread exhaustion | Medium (2) | Medium (2) | 🟡 4 | Performance |
 | R5 | Catalog read terganggu tulis auction | Medium (2) | Medium (2) | 🟡 4 | Performance |
 
 R1 dan R2 adalah risiko paling kritis. Ratusan bid yang masuk dalam hitungan
 detik akan menyebabkan ratusan transaksi berebut mengunci baris yang sama di
 database. Di saat yang sama, setiap bid harus menunggu Wallet Module selesai
-mem-hold dana secara sinkronus — bottleneck di satu titik ini memperlambat
+mem-hold dana secara sinkronus, bottleneck di satu titik ini memperlambat
 seluruh proses lelang.
 
 R3 menjadi risiko eksistensial karena kegagalan di Auction Module akibat
@@ -268,19 +278,19 @@ secara langsung memutus rantai kegagalan yang teridentifikasi. Ketika Auction
 Service membutuhkan lebih banyak kapasitas saat bidding war, ia bisa di-scale-out
 secara independen tanpa membebani Auth atau Catalog Service. Database yang
 terpisah berarti query berat di Auction tidak lagi bisa menghambat pembacaan
-katalog — menjawab R1, R3, dan R5 sekaligus.
+katalog (menjawab R1, R3, dan R5 sekaligus).
 
 Penggantian pemanggilan sinkronus dengan event asinkronus melalui message
 broker menjadi kunci untuk mengatasi R2 dan R4. Dalam arsitektur baru, Auction
 Service hanya perlu melakukan satu pengecekan saldo cepat via gRPC ke Wallet
 Service, kemudian langsung mengembalikan respons sukses ke user. Pembaruan
 harga di Catalog dan pengiriman notifikasi outbid terjadi di background melalui
-event `bid.placed` — response time bidding menjadi jauh lebih cepat dan tidak
+event `bid.placed`, response time bidding menjadi jauh lebih cepat dan tidak
 terpengaruh oleh beban di service lain.
 
 Message broker juga berperan sebagai buffer saat lonjakan traffic terjadi.
 Event yang belum sempat diproses akan mengantri di broker dan dikonsumsi
-secara bertahap sesuai kapasitas masing-masing consumer — bukan langsung
+secara bertahap sesuai kapasitas masing-masing consumer, bukan langsung
 membebani database seperti yang terjadi di arsitektur monolitik saat ini.
 
 ---
