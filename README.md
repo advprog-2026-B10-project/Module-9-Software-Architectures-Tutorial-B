@@ -8,7 +8,7 @@
 ## Individual Work
 
 - [Ahmad Wasis Shofiyulloh - Auth Module](Auth.md)
-- [Fidel Akilah](#)
+- [Fidel Akilah - Order & Notification Module](OrderNotif.md)
 - [Josiah Naphta Simorangkir](Catalog.md)
 - [Petrus Wermasaubun](Wallet.md)
 - [Tsaniya Fini Ardiyanti - Bidding Module](Bidding.md)
