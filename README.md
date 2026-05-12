@@ -234,12 +234,53 @@ graph TB
 | `auction.winner_determined` | Auction Service | Wallet, Order/Notif | Konversi hold dana jadi payment, buat order |
 | `user.banned` | Auth Service | Auction | Gugurkan bid aktif & lepas dana tertahan |
 
-
-
 ---
 
 ## Risk Storming
 
+Sesi Risk Storming dilakukan dengan skenario: BidMart sedang mengadakan
+lelang barang populer yang diikuti ribuan user secara bersamaan.
 
+### Peta Risiko
+
+| Risk | Risiko | Dampak | Likelihood | Score | Area |
+| --- | --- | --- | --- | --- | --- |
+| R1 | Database locking saat bidding war | High (3) | High (3) | 🔴 9 | Performance |
+| R2 | Wallet sync bottleneck memblokir bid | High (3) | High (3) | 🔴 9 | Availability |
+| R3 | Single point of failure — monolith crash | High (3) | Medium (2) | 🔴 6 | Availability |
+| R4 | Anti-sniping thread exhaustion | Medium (2) | Medium (2) | 🟡 4 | Performance |
+| R5 | Catalog read terganggu tulis auction | Medium (2) | Medium (2) | 🟡 4 | Performance |
+
+R1 dan R2 adalah risiko paling kritis. Ratusan bid yang masuk dalam hitungan
+detik akan menyebabkan ratusan transaksi berebut mengunci baris yang sama di
+database. Di saat yang sama, setiap bid harus menunggu Wallet Module selesai
+mem-hold dana secara sinkronus — bottleneck di satu titik ini memperlambat
+seluruh proses lelang.
+
+R3 menjadi risiko eksistensial karena kegagalan di Auction Module akibat
+lonjakan traffic bisa menyebabkan OOM yang mematikan seluruh aplikasi,
+termasuk halaman login dan halaman katalog yang sama sekali tidak berkaitan.
+
+### Justifikasi Modifikasi Arsitektur
+
+Pemisahan setiap modul menjadi service independen dengan database-nya sendiri
+secara langsung memutus rantai kegagalan yang teridentifikasi. Ketika Auction
+Service membutuhkan lebih banyak kapasitas saat bidding war, ia bisa di-scale-out
+secara independen tanpa membebani Auth atau Catalog Service. Database yang
+terpisah berarti query berat di Auction tidak lagi bisa menghambat pembacaan
+katalog — menjawab R1, R3, dan R5 sekaligus.
+
+Penggantian pemanggilan sinkronus dengan event asinkronus melalui message
+broker menjadi kunci untuk mengatasi R2 dan R4. Dalam arsitektur baru, Auction
+Service hanya perlu melakukan satu pengecekan saldo cepat via gRPC ke Wallet
+Service, kemudian langsung mengembalikan respons sukses ke user. Pembaruan
+harga di Catalog dan pengiriman notifikasi outbid terjadi di background melalui
+event `bid.placed` — response time bidding menjadi jauh lebih cepat dan tidak
+terpengaruh oleh beban di service lain.
+
+Message broker juga berperan sebagai buffer saat lonjakan traffic terjadi.
+Event yang belum sempat diproses akan mengantri di broker dan dikonsumsi
+secara bertahap sesuai kapasitas masing-masing consumer — bukan langsung
+membebani database seperti yang terjadi di arsitektur monolitik saat ini.
 
 ---
