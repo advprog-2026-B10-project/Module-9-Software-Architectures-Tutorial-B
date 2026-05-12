@@ -9,7 +9,7 @@
 
 - [Ahmad Wasis Shofiyulloh - Auth Module](Auth.md)
 - [Fidel Akilah](#)
-- [Josiah Naphta Simorangkir](#)
+- [Josiah Naphta Simorangkir](Catalog.md)
 - [Petrus Wermasaubun](Wallet.md)
 - [Tsaniya Fini Ardiyanti - Bidding Module](Bidding.md)
 
